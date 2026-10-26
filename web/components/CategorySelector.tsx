@@ -3,6 +3,7 @@
 import React from "react";
 import { CategoryEntry, Language } from "@/lib/types";
 import { translations } from "@/lib/translations";
+import { formatNumber, formatDate } from "@/lib/format";
 import { Layers, CheckSquare, Square, Calendar } from "lucide-react";
 
 interface CategorySelectorProps {
@@ -30,20 +31,8 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
     .filter((c) => selectedCategoryIds.has(c.id))
     .reduce((acc, c) => acc + c.count, 0);
 
-  // Format extract date
-  let formattedDate = osmExtractDate;
-  try {
-    const d = new Date(osmExtractDate);
-    if (!isNaN(d.getTime())) {
-      formattedDate = d.toLocaleDateString(lang === "ro" ? "ro-RO" : "en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
-    }
-  } catch {
-    // Keep raw date
-  }
+  // Format extract date deterministically
+  const formattedDate = formatDate(osmExtractDate, lang);
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
@@ -78,7 +67,13 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
       <div className="flex items-center space-x-1.5 text-xs text-slate-500 dark:text-slate-400 mt-3 mb-4 bg-slate-50 dark:bg-slate-800/50 px-3 py-2 rounded-xl">
         <Calendar className="w-4 h-4 text-slate-400" />
         <span>
-          {t.dataFrom} <strong className="text-slate-700 dark:text-slate-200">{formattedDate}</strong>
+          {t.dataFrom}{" "}
+          <strong
+            suppressHydrationWarning
+            className="text-slate-700 dark:text-slate-200"
+          >
+            {formattedDate}
+          </strong>
         </span>
       </div>
 
@@ -112,8 +107,11 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                 <span className="truncate">{categoryName}</span>
               </div>
 
-              <span className="text-xs font-mono bg-white/80 dark:bg-slate-800 px-2 py-0.5 rounded-md text-slate-500 dark:text-slate-400 border border-slate-200/60 dark:border-slate-700 shrink-0 ml-2">
-                {cat.count.toLocaleString()}
+              <span
+                suppressHydrationWarning
+                className="text-xs font-mono bg-white/80 dark:bg-slate-800 px-2 py-0.5 rounded-md text-slate-500 dark:text-slate-400 border border-slate-200/60 dark:border-slate-700 shrink-0 ml-2"
+              >
+                {formatNumber(cat.count, lang)}
               </span>
             </label>
           );
@@ -125,8 +123,11 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
         <span>
           {selectedCategoryIds.size} / {categories.length} categorii
         </span>
-        <span className="font-semibold text-slate-800 dark:text-slate-200">
-          {totalSelectedPois.toLocaleString()} {t.selectedCount}
+        <span
+          suppressHydrationWarning
+          className="font-semibold text-slate-800 dark:text-slate-200"
+        >
+          {formatNumber(totalSelectedPois, lang)} {t.selectedCount}
         </span>
       </div>
     </div>

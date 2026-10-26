@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import { CountryEntry, Language } from "@/lib/types";
 import { translations } from "@/lib/translations";
+import { formatNumber } from "@/lib/format";
 import { Search, MapPin, Check } from "lucide-react";
 
 interface CountryPickerProps {
@@ -90,8 +91,11 @@ export const CountryPicker: React.FC<CountryPickerProps> = ({
                 </div>
 
                 <div className="flex items-center space-x-2 shrink-0 ml-2">
-                  <span className="text-xs text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md font-mono">
-                    {totalPois.toLocaleString()}
+                  <span
+                    suppressHydrationWarning
+                    className="text-xs text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md font-mono"
+                  >
+                    {formatNumber(totalPois, lang)}
                   </span>
                   {isSelected && <Check className="w-4 h-4 text-brand-600 dark:text-brand-400" />}
                 </div>
