@@ -1,0 +1,236 @@
+# ==============================================================================
+# Categories configuration for RNS 510 POI Forge
+# ==============================================================================
+categories:
+  - id: fuel
+    name:
+      ro: "Benzinării"
+      en: "Fuel Stations"
+    fallback_name:
+      ro: "Benzinărie"
+      en: "Fuel Station"
+    filters:
+      all:
+        amenity: "fuel"
+    description_tags:
+      - "brand"
+      - "operator"
+      - "opening_hours"
+
+  - id: lpg
+    name:
+      ro: "GPL (Autogas)"
+      en: "LPG (Autogas)"
+    fallback_name:
+      ro: "Stație GPL"
+      en: "LPG Station"
+    filters:
+      all:
+        amenity: "fuel"
+        fuel:lpg: "yes"
+    description_tags:
+      - "brand"
+      - "operator"
+      - "opening_hours"
+
+  - id: ev_charging
+    name:
+      ro: "Stații de Încărcare EV"
+      en: "EV Charging Stations"
+    fallback_name:
+      ro: "Stație Încărcare EV"
+      en: "EV Charging"
+    filters:
+      all:
+        amenity: "charging_station"
+    description_tags:
+      - "operator"
+      - "capacity"
+      - "opening_hours"
+      - "socket:type2"
+      - "socket:type2_combo"
+      - "socket:chademo"
+      - "socket:tesla_supercharger"
+      - "maxpower"
+
+  - id: parking_large
+    name:
+      ro: "Parcări Mari & Park+Ride"
+      en: "Large Parking & Park+Ride"
+    fallback_name:
+      ro: "Parcare"
+      en: "Parking"
+    filters:
+      all:
+        amenity: "parking"
+      condition: "has_name_or_park_ride_or_capacity_100"
+    description_tags:
+      - "capacity"
+      - "fee"
+      - "access"
+      - "opening_hours"
+
+  - id: truck_parking
+    name:
+      ro: "Parcări Camioane (TIR)"
+      en: "Truck Parking"
+    fallback_name:
+      ro: "Parcare Camioane"
+      en: "Truck Parking"
+    filters:
+      all:
+        amenity: "parking"
+      any:
+        hgv: ["yes", "designated"]
+    description_tags:
+      - "capacity:hgv"
+      - "fee"
+      - "opening_hours"
+
+  - id: rest_area
+    name:
+      ro: "Zone de Odihnă & Servicii Autostradă"
+      en: "Rest Areas & Highway Services"
+    fallback_name:
+      ro: "Zonă de Odihnă"
+      en: "Rest Area"
+    filters:
+      any:
+        highway: ["rest_area", "services"]
+    description_tags:
+      - "operator"
+      - "toilets"
+
+  - id: pharmacy
+    name:
+      ro: "Farmacii"
+      en: "Pharmacies"
+    fallback_name:
+      ro: "Farmacie"
+      en: "Pharmacy"
+    filters:
+      all:
+        amenity: "pharmacy"
+    description_tags:
+      - "dispensing"
+      - "opening_hours"
+
+  - id: atm
+    name:
+      ro: "Bancomate (ATM)"
+      en: "ATMs"
+    fallback_name:
+      ro: "Bancomat"
+      en: "ATM"
+    filters:
+      all:
+        amenity: "atm"
+    description_tags:
+      - "operator"
+      - "network"
+      - "currency:EUR"
+      - "currency:RON"
+      - "opening_hours"
+
+  - id: hospital
+    name:
+      ro: "Spitale & Urgențe"
+      en: "Hospitals & Emergency"
+    fallback_name:
+      ro: "Spital"
+      en: "Hospital"
+    filters:
+      all:
+        amenity: "hospital"
+    description_tags:
+      - "emergency"
+      - "operator"
+      - "opening_hours"
+
+  - id: car_repair
+    name:
+      ro: "Service Auto"
+      en: "Car Repair"
+    fallback_name:
+      ro: "Service Auto"
+      en: "Car Repair"
+    filters:
+      all:
+        shop: "car_repair"
+    description_tags:
+      - "service"
+      - "brand"
+      - "opening_hours"
+
+  - id: tyres
+    name:
+      ro: "Vulcanizări & Anvelope"
+      en: "Tyres & Vulcanization"
+    fallback_name:
+      ro: "Vulcanizare"
+      en: "Tyre Shop"
+    filters:
+      all:
+        shop: "tyres"
+    description_tags:
+      - "service:tyres"
+      - "opening_hours"
+
+  - id: car_wash
+    name:
+      ro: "Spălătorii Auto"
+      en: "Car Washes"
+    fallback_name:
+      ro: "Spălătorie Auto"
+      en: "Car Wash"
+    filters:
+      all:
+        amenity: "car_wash"
+    description_tags:
+      - "self_service"
+      - "opening_hours"
+
+  - id: camping
+    name:
+      ro: "Camping & Rulote"
+      en: "Camping & Caravan Sites"
+    fallback_name:
+      ro: "Camping"
+      en: "Campsite"
+    filters:
+      any:
+        tourism: ["camp_site", "caravan_site"]
+    description_tags:
+      - "tents"
+      - "caravans"
+      - "fee"
+      - "opening_hours"
+
+  - id: supermarket
+    name:
+      ro: "Supermarketuri"
+      en: "Supermarkets"
+    fallback_name:
+      ro: "Supermarket"
+      en: "Supermarket"
+    filters:
+      all:
+        shop: "supermarket"
+    description_tags:
+      - "brand"
+      - "operator"
+      - "opening_hours"
+
+  - id: border_crossing
+    name:
+      ro: "Puncte Trecere Frontieră"
+      en: "Border Crossings"
+    fallback_name:
+      ro: "Punct Frontieră"
+      en: "Border Control"
+    filters:
+      all:
+        barrier: "border_control"
+    description_tags:
+      - "border_type"
+      - "opening_hours"

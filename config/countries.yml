@@ -1,0 +1,163 @@
+# List of European countries available from Geofabrik.
+# publish: true indicates the country is published in automated builds and release index.
+# Regional composites (alps, dach, britain-and-ireland) are marked publish: false.
+countries:
+  - id: albania
+    name: { ro: "Albania", en: "Albania" }
+    publish: true
+  - id: andorra
+    name: { ro: "Andorra", en: "Andorra" }
+    publish: true
+  - id: austria
+    name: { ro: "Austria", en: "Austria" }
+    publish: true
+  - id: belarus
+    name: { ro: "Belarus", en: "Belarus" }
+    publish: true
+  - id: belgium
+    name: { ro: "Belgia", en: "Belgium" }
+    publish: true
+  - id: bosnia-herzegovina
+    name: { ro: "Bosnia și Herțegovina", en: "Bosnia and Herzegovina" }
+    publish: true
+  - id: bulgaria
+    name: { ro: "Bulgaria", en: "Bulgaria" }
+    publish: true
+  - id: croatia
+    name: { ro: "Croația", en: "Croatia" }
+    publish: true
+  - id: cyprus
+    name: { ro: "Cipru", en: "Cyprus" }
+    publish: true
+  - id: czech-republic
+    name: { ro: "Cehia", en: "Czech Republic" }
+    publish: true
+  - id: denmark
+    name: { ro: "Danemarca", en: "Denmark" }
+    publish: true
+  - id: estonia
+    name: { ro: "Estonia", en: "Estonia" }
+    publish: true
+  - id: faroe-islands
+    name: { ro: "Insulele Feroe", en: "Faroe Islands" }
+    publish: true
+  - id: finland
+    name: { ro: "Finlanda", en: "Finland" }
+    publish: true
+  - id: france
+    name: { ro: "Franța", en: "France" }
+    publish: true
+  - id: georgia
+    name: { ro: "Georgia", en: "Georgia" }
+    publish: true
+  - id: germany
+    name: { ro: "Germania", en: "Germany" }
+    publish: true
+  - id: great-britain
+    name: { ro: "Marea Britanie", en: "Great Britain" }
+    publish: true
+  - id: greece
+    name: { ro: "Grecia", en: "Greece" }
+    publish: true
+  - id: guernsey-jersey
+    name: { ro: "Guernsey și Jersey", en: "Guernsey and Jersey" }
+    publish: true
+  - id: hungary
+    name: { ro: "Ungaria", en: "Hungary" }
+    publish: true
+  - id: iceland
+    name: { ro: "Islanda", en: "Iceland" }
+    publish: true
+  - id: ireland-and-northern-ireland
+    name: { ro: "Irlanda și Irlanda de Nord", en: "Ireland and Northern Ireland" }
+    publish: true
+  - id: isle-of-man
+    name: { ro: "Insula Man", en: "Isle of Man" }
+    publish: true
+  - id: italy
+    name: { ro: "Italia", en: "Italy" }
+    publish: true
+  - id: kosovo
+    name: { ro: "Kosovo", en: "Kosovo" }
+    publish: true
+  - id: latvia
+    name: { ro: "Letonia", en: "Latvia" }
+    publish: true
+  - id: liechtenstein
+    name: { ro: "Liechtenstein", en: "Liechtenstein" }
+    publish: true
+  - id: lithuania
+    name: { ro: "Lituania", en: "Lithuania" }
+    publish: true
+  - id: luxembourg
+    name: { ro: "Luxemburg", en: "Luxembourg" }
+    publish: true
+  - id: macedonia
+    name: { ro: "Macedonia de Nord", en: "North Macedonia" }
+    publish: true
+  - id: malta
+    name: { ro: "Malta", en: "Malta" }
+    publish: true
+  - id: moldova
+    name: { ro: "Republica Moldova", en: "Moldova" }
+    publish: true
+  - id: monaco
+    name: { ro: "Monaco", en: "Monaco" }
+    publish: true
+  - id: montenegro
+    name: { ro: "Muntenegru", en: "Montenegro" }
+    publish: true
+  - id: netherlands
+    name: { ro: "Olanda", en: "Netherlands" }
+    publish: true
+  - id: norway
+    name: { ro: "Norvegia", en: "Norway" }
+    publish: true
+  - id: poland
+    name: { ro: "Polonia", en: "Poland" }
+    publish: true
+  - id: portugal
+    name: { ro: "Portugalia", en: "Portugal" }
+    publish: true
+  - id: romania
+    name: { ro: "România", en: "Romania" }
+    publish: true
+  - id: serbia
+    name: { ro: "Serbia", en: "Serbia" }
+    publish: true
+  - id: slovakia
+    name: { ro: "Slovacia", en: "Slovakia" }
+    publish: true
+  - id: slovenia
+    name: { ro: "Slovenia", en: "Slovenia" }
+    publish: true
+  - id: spain
+    name: { ro: "Spania", en: "Spain" }
+    publish: true
+  - id: sweden
+    name: { ro: "Suedia", en: "Sweden" }
+    publish: true
+  - id: switzerland
+    name: { ro: "Elveția", en: "Switzerland" }
+    publish: true
+  - id: turkey
+    name: { ro: "Turcia", en: "Turkey" }
+    publish: true
+  - id: ukraine
+    name: { ro: "Ucraina", en: "Ukraine" }
+    publish: true
+  - id: united-kingdom
+    name: { ro: "Regatul Unit", en: "United Kingdom" }
+    publish: false # Great Britain and Northern Ireland covered separately
+  - id: alps
+    name: { ro: "Alpi", en: "Alps" }
+    publish: false # Regional composite
+  - id: azores
+    name: { ro: "Azore", en: "Azores" }
+    publish: false # Sub-region of Portugal
+  - id: britain-and-ireland
+    name: { ro: "Marea Britanie și Irlanda", en: "Britain and Ireland" }
+    publish: false # Regional composite
+  - id: dach
+    name: { ro: "DACH (Germania, Austria, Elveția)", en: "DACH" }
+    publish: false # Regional composite

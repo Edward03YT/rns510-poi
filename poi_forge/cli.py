@@ -6,6 +6,9 @@ import argparse
 import sys
 from pathlib import Path
 
+from poi_forge.countries import get_country, resolve_european_countries
+from poi_forge.download import download_pbf_with_cache
+from poi_forge.extract import extract_pois, load_categories
 from poi_forge.formats.base import POIRecord
 from poi_forge.formats.rns510_asc import RNS510AscConfig, RNS510AscWriter
 
@@ -16,16 +19,8 @@ def create_probe_records(
     count: int = 5,
     preset: str = "probe",
 ) -> list[POIRecord]:
-    """Generate synthetic POIs for format probing and hardware testing.
-
-    Args:
-        center_lat: Center latitude.
-        center_lon: Center longitude.
-        count: Number of records to generate.
-        preset: 'probe' for curated edge cases, or 'grid' for bulk stress testing.
-    """
+    """Generate synthetic POIs for format probing and hardware testing."""
     if preset == "probe":
-        # Hand-crafted edge cases to test RNS 510 parser limits
         records = [
             POIRecord(
                 id="probe-001",
@@ -70,12 +65,10 @@ def create_probe_records(
         ]
         if count <= 5:
             return records[:count]
-        # If user asked for more than 5 in probe preset, add grid records to reach count
         extra_count = count - 5
         records.extend(_generate_grid_records(center_lat, center_lon, extra_count, offset=5))
         return records
 
-    # Generic grid/stress testing
     return _generate_grid_records(center_lat, center_lon, count, offset=1)
 
 
@@ -87,7 +80,7 @@ def _generate_grid_records(
 
     records: list[POIRecord] = []
     side = int(math.ceil(math.sqrt(count)))
-    step = 0.0015  # ~150 meters apart
+    step = 0.0015
 
     generated = 0
     for r in range(side):
@@ -149,8 +142,7 @@ def cmd_probe_file(args: argparse.Namespace) -> int:
 
     print(f"Successfully generated {len(written_files)} probe file(s):")
     for f in written_files:
-        size_bytes = f.stat().st_size
-        print(f"  -> {f} ({size_bytes} bytes)")
+        print(f"  -> {f} ({f.stat().st_size} bytes)")
 
     if args.generate_matrix:
         matrix_dir = out_path.parent / "probe_matrix"
@@ -160,7 +152,6 @@ def cmd_probe_file(args: argparse.Namespace) -> int:
 
     print("\nNext steps:")
     print("1. Copy the probe file(s) to a FAT32-formatted SD card.")
-    print("   Test both the root folder and /PersonalPOI/ directory.")
     print("2. Insert SD card into VW RNS 510 unit.")
     print("3. Navigate to: Navigation -> My special destinations -> Import -> Import into database.")
     print("4. Read docs/FORMAT_PROBE.md for observation checklist and reporting format.")
@@ -199,6 +190,118 @@ def _generate_variant_matrix(
         files = var_writer.write(records, dest)
         for f in files:
             print(f"  [Matrix] {f.name} ({f.stat().st_size} bytes)")
+
+
+def cmd_list_countries(args: argparse.Namespace) -> int:
+    """Execute 'list-countries' subcommand."""
+    print("Fetching European countries from Geofabrik index...")
+    countries = resolve_european_countries(
+        cache_dir=args.cache,
+        config_path=args.config,
+        publish_only=not args.all,
+    )
+
+    print(f"\nAvailable European Extracts ({len(countries)} total):")
+    print("-" * 90)
+    print(f"{'ID':<25} {'Name (EN)':<25} {'Publish':<10} {'Sub-extracts'}")
+    print("-" * 90)
+    for c in countries:
+        sub_info = f"{len(c.sub_extract_ids)} sub-regions" if c.sub_extract_ids else "-"
+        pub_str = "YES" if c.publish else "NO"
+        print(f"{c.id:<25} {c.name.get('en', c.id):<25} {pub_str:<10} {sub_info}")
+    print("-" * 90)
+    return 0
+
+
+def cmd_build(args: argparse.Namespace) -> int:
+    """Execute 'build' subcommand."""
+    country_id = args.country
+    cache_dir = Path(args.cache)
+    out_dir = Path(args.out)
+    fmt_config_path = Path(args.format_config)
+    cat_config_path = Path(args.categories_config)
+
+    # 1. Load configs
+    fmt_config = (
+        RNS510AscConfig.from_yaml(fmt_config_path)
+        if fmt_config_path.exists()
+        else RNS510AscConfig()
+    )
+    all_categories = load_categories(cat_config_path)
+
+    # 2. Selected categories
+    if args.categories:
+        selected_cat_ids = [c.strip() for c in args.categories.split(",") if c.strip()]
+        for cid in selected_cat_ids:
+            if cid not in all_categories:
+                print(f"Error: Unknown category '{cid}'. Available: {list(all_categories.keys())}")
+                return 1
+    else:
+        selected_cat_ids = list(all_categories.keys())
+
+    # 3. Resolve country extract info
+    print(f"Resolving country extract for '{country_id}'...")
+    try:
+        country = get_country(country_id, cache_dir=cache_dir)
+    except KeyError as e:
+        print(f"Error: {e}")
+        return 1
+
+    print(f"Country      : {country.name.get('en', country.id)} ({country.id})")
+    print(f"PBF URL      : {country.pbf_url}")
+
+    # 4. Download / verify cache
+    print("Downloading / checking cache for PBF extract...")
+
+    def progress_cb(current: int, total: int | None) -> None:
+        if total:
+            pct = (current / total) * 100
+            sys.stdout.write(f"\rDownloading: {pct:.1f}% ({current / 1048576:.1f}/{total / 1048576:.1f} MB)")
+            sys.stdout.flush()
+
+    dl_result = download_pbf_with_cache(
+        country.pbf_url,
+        target_dir=cache_dir,
+        md5_url=country.md5_url,
+        progress_callback=progress_cb,
+    )
+    print(f"\nPBF ready at : {dl_result.file_path}")
+    print(f"MD5 checksum : {dl_result.md5} ({'cached' if dl_result.from_cache else 'downloaded'})")
+    print(f"Extract date : {dl_result.extract_timestamp or 'unknown'}")
+
+    # 5. Extract POIs
+    print(f"\nExtracting POIs for {len(selected_cat_ids)} category(ies)...")
+    pois_by_cat = extract_pois(
+        pbf_path=dl_result.file_path,
+        categories_path=cat_config_path,
+        category_ids=selected_cat_ids,
+        lang="ro",
+    )
+
+    # 6. Write packages
+    writer = RNS510AscWriter(fmt_config)
+    country_out_dir = out_dir / country_id
+    total_written = 0
+
+    print("\nWriting packages:")
+    print("-" * 65)
+    print(f"{'Category':<20} {'POIs Count':<12} {'Files Generated'}")
+    print("-" * 65)
+
+    for cat_id in selected_cat_ids:
+        records = pois_by_cat.get(cat_id, [])
+        cat_dir = country_out_dir / cat_id
+        target_asc = cat_dir / f"{country_id}_{cat_id}.asc"
+
+        written_files = writer.write(records, target_asc, force_chunk_suffix=True)
+        total_written += len(records)
+        files_str = ", ".join(f.name for f in written_files)
+        print(f"{cat_id:<20} {len(records):<12} {files_str}")
+
+    print("-" * 65)
+    print(f"Total POIs written: {total_written} across {len(selected_cat_ids)} categories")
+    print(f"Output directory  : {country_out_dir}")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -258,19 +361,59 @@ def main(argv: list[str] | None = None) -> int:
     )
     probe_p.set_defaults(func=cmd_probe_file)
 
-    # Placeholders for future phases
+    # list-countries subcommand
     list_p = subparsers.add_parser(
-        "list-countries", help="List available Geofabrik country extracts (Phase 1)"
+        "list-countries", help="List available Geofabrik country extracts"
     )
-    list_p.set_defaults(
-        func=lambda args: print("list-countries will be implemented in Phase 1.") or 0
+    list_p.add_argument(
+        "--cache", default="cache", help="Cache directory for index (default: cache)"
     )
+    list_p.add_argument(
+        "--config",
+        default="config/countries.yml",
+        help="Countries config (default: config/countries.yml)",
+    )
+    list_p.add_argument(
+        "--all",
+        action="store_true",
+        help="Show all extracts including unlisted/composite regions",
+    )
+    list_p.set_defaults(func=cmd_list_countries)
 
-    build_p = subparsers.add_parser("build", help="Build POI packages (Phase 2)")
-    build_p.set_defaults(
-        func=lambda args: print("build will be implemented in Phase 2.") or 0
+    # build subcommand
+    build_p = subparsers.add_parser("build", help="Build POI packages for a country")
+    build_p.add_argument(
+        "--country",
+        required=True,
+        help="Geofabrik country ID (e.g. romania, malta, luxembourg)",
     )
+    build_p.add_argument(
+        "--categories",
+        help="Comma-separated category IDs to build (default: all)",
+    )
+    build_p.add_argument(
+        "--out",
+        default="packages",
+        help="Output directory (default: packages)",
+    )
+    build_p.add_argument(
+        "--cache",
+        default="cache",
+        help="Cache directory for PBF downloads (default: cache)",
+    )
+    build_p.add_argument(
+        "--format-config",
+        default="config/format.yml",
+        help="Format config file (default: config/format.yml)",
+    )
+    build_p.add_argument(
+        "--categories-config",
+        default="config/categories.yml",
+        help="Categories config file (default: config/categories.yml)",
+    )
+    build_p.set_defaults(func=cmd_build)
 
+    # Placeholders for future phases
     validate_p = subparsers.add_parser(
         "validate", help="Validate generated POI files against format.yml (Phase 3)"
     )
