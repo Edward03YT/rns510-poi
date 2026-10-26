@@ -1,0 +1,79 @@
+# ==============================================================================
+# RNS 510 Personal POI ASC Format Configuration
+# ==============================================================================
+# STATUS: UNVERIFIED
+# The parameters below are based on automotive community conventions and NAVI ASC
+# specs, but have NOT yet been verified on a physical VW RNS 510 unit.
+# Before marking verified: true, follow instructions in docs/FORMAT_PROBE.md.
+# ==============================================================================
+
+# Verification status: must be true only after physical hardware validation.
+verified: false
+verification_note: "UNVERIFIED: Default ASC settings based on community convention. Awaiting physical hardware probe on RNS 510 unit."
+
+# Structure and fields
+# UNVERIFIED
+fields:
+  # Order of columns in each record line.
+  # Options: combination of ["lon", "lat", "name", "description"]
+  # Default convention: lon,lat,"name","description"
+  order:
+    - "lon"
+    - "lat"
+    - "name"
+    - "description"
+
+  # Delimiter between fields (e.g. "," or "\t" or ";")
+  separator: ","
+
+  # Coordinate order: "lon_lat" (X, Y) or "lat_lon" (Y, X)
+  coordinate_order: "lon_lat"
+
+  # Number of decimal places for latitude and longitude (WGS84)
+  coordinate_decimals: 6
+
+  # Quoting rules for text fields (name, description)
+  quote_text: true
+  quote_char: '"'
+  
+  # Quote escaping method: "double" ("") or "backslash" (\") or "strip" (remove internal quotes)
+  escape_quote: '""'
+
+# Character encoding and transliteration
+# UNVERIFIED
+encoding:
+  # Encoding to use when writing file: "cp1250", "cp1252", "utf-8", or "ascii"
+  # Default: cp1250 (Central European, standard for VAG units supporting Romanian/Polish/Czech)
+  charset: "cp1250"
+
+  # If true, transliterate Romanian diacritics (ș, ț, ă, â, î -> s, t, a, a, i)
+  # and other non-ASCII characters to safe plain ASCII equivalents.
+  ascii_transliterate: true
+
+  # Fallback error handling if characters cannot be encoded in charset:
+  # "replace" (substitute with '?') or "ignore" (drop character)
+  on_encoding_error: "replace"
+
+# Line endings
+# UNVERIFIED
+# Options: "crlf" (\r\n - standard for DOS/Windows FAT32 SD cards) or "lf" (\n)
+line_endings: "crlf"
+
+# Practical limits and chunking thresholds
+# UNVERIFIED
+limits:
+  # Maximum allowed characters for POI name before truncation
+  max_name_length: 60
+
+  # Maximum allowed characters for description before truncation
+  max_desc_length: 120
+
+  # Maximum number of POIs per single .asc file before splitting into chunks
+  max_pois_per_file: 5000
+
+  # Maximum file size in bytes (e.g. 2 * 1024 * 1024 = 2097152 bytes = 2MB)
+  max_file_size_bytes: 2097152
+
+# SD Card directory convention
+# UNVERIFIED: Check whether RNS 510 expects files in root or in /PersonalPOI
+sd_card_dir: "PersonalPOI"
