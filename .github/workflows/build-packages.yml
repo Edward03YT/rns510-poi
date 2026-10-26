@@ -1,0 +1,226 @@
+name: Build and Publish POI Packages
+
+on:
+  schedule:
+    # Run monthly on the 1st of every month at 03:00 UTC
+    - cron: "0 3 1 * *"
+  workflow_dispatch:
+    inputs:
+      countries:
+        description: "Comma-separated list of country IDs to build (leave empty for all published countries in countries.yml)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  prep-matrix:
+    name: Prepare Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve Countries Matrix
+        id: set-matrix
+        run: |
+          python -c "
+          import json, os, yaml
+
+          input_countries = '${{ github.event.inputs.countries }}'.strip()
+          if input_countries:
+              selected = [c.strip() for c in input_countries.split(',') if c.strip()]
+          else:
+              with open('config/countries.yml', encoding='utf-8') as f:
+                  data = yaml.safe_load(f) or {}
+              selected = [c['id'] for c in data.get('countries', []) if c.get('publish', True)]
+
+          print(f'Selected countries for build: {selected}')
+          matrix_json = json.dumps({'country': selected})
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f'matrix={matrix_json}\n')
+          "
+
+  build-country:
+    name: Build ${{ matrix.country }}
+    needs: prep-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prep-matrix.outputs.matrix) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Cache OSM PBF download
+        uses: actions/cache@v4
+        with:
+          path: cache
+          key: pbf-${{ matrix.country }}-${{ hashFiles('config/countries.yml') }}
+          restore-keys: |
+            pbf-${{ matrix.country }}-
+
+      - name: Build POI package for ${{ matrix.country }}
+        run: |
+          poi-forge build --country ${{ matrix.country }} --zip --out packages
+
+      - name: Validate generated packages for ${{ matrix.country }}
+        run: |
+          poi-forge validate packages/${{ matrix.country }}
+
+      - name: Upload country package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.country }}
+          path: |
+            packages/${{ matrix.country }}
+            packages/${{ matrix.country }}.zip
+          retention-days: 2
+
+  publish-release:
+    name: Publish Release & Index
+    needs: [prep-matrix, build-country]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Download all built package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: downloaded_artifacts
+
+      - name: Organize packages directory
+        run: |
+          mkdir -p packages
+          python -c "
+          import shutil
+          from pathlib import Path
+
+          src = Path('downloaded_artifacts')
+          dest = Path('packages')
+
+          for art_dir in src.glob('package-*'):
+              for item in art_dir.iterdir():
+                  target = dest / item.name
+                  if item.is_dir():
+                      if target.exists():
+                          shutil.rmtree(target)
+                      shutil.copytree(item, target)
+                  else:
+                      shutil.copy2(item, target)
+          "
+          ls -la packages
+
+      - name: Generate release index.json
+        run: |
+          poi-forge index --packages packages --out packages/index.json
+
+      - name: Generate Workflow Summary
+        run: |
+          python -c "
+          import json, os
+          from pathlib import Path
+
+          index_path = Path('packages/index.json')
+          if not index_path.exists():
+              print('No index.json generated')
+              exit(0)
+
+          with open(index_path, encoding='utf-8') as f:
+              data = json.load(f)
+
+          countries = data.get('countries', [])
+          lines = [
+              '# RNS 510 POI Build Summary',
+              f'**Generated**: {data.get(\"generated\", \"\")} | **Verified Format**: {data.get(\"format\", {}).get(\"verified\", False)}',
+              '',
+              '| Country | Extract Date | Categories | Total POIs | Zip Size |',
+              '|---|---|---|---|---|',
+          ]
+
+          total_pois = 0
+          for c in countries:
+              cid = c['id']
+              cname = c['name'].get('en', cid)
+              ext_date = c.get('osm_extract_date', 'N/A')
+              cat_count = len(c.get('categories', []))
+              pois = sum(cat.get('count', 0) for cat in c.get('categories', []))
+              total_pois += pois
+              zip_file = Path('packages') / f'{cid}.zip'
+              zip_size = f'{zip_file.stat().st_size / 1024:.1f} KB' if zip_file.exists() else 'N/A'
+              lines.append(f'| **{cname}** ({cid}) | {ext_date} | {cat_count} | {pois:,} | {zip_size} |')
+
+          lines.append('')
+          lines.append(f'**Total Countries**: {len(countries)} | **Total POIs**: {total_pois:,}')
+
+          summary_content = '\n'.join(lines)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as out:
+              out.write(summary_content + '\n')
+          "
+
+      - name: Determine Release Tag
+        id: release-tag
+        run: |
+          TAG="data-$(date -u +'%Y-%m')"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "title=POI Data $(date -u +'%B %Y')" >> $GITHUB_OUTPUT
+
+      - name: Create or Update Dated GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release-tag.outputs.tag }}
+          name: ${{ steps.release-tag.outputs.title }}
+          draft: false
+          prerelease: false
+          files: |
+            packages/*.zip
+            packages/index.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update 'latest' Release Pointer
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Latest POI Data"
+          draft: false
+          prerelease: false
+          files: |
+            packages/index.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
