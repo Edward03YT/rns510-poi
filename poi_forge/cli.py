@@ -11,6 +11,14 @@ from poi_forge.download import download_pbf_with_cache
 from poi_forge.extract import extract_pois, load_categories
 from poi_forge.formats.base import POIRecord
 from poi_forge.formats.rns510_asc import RNS510AscConfig, RNS510AscWriter
+from poi_forge.index import build_index, write_index
+from poi_forge.packaging import (
+    create_category_meta,
+    create_country_zip,
+    write_attribution_file,
+    write_category_meta,
+)
+from poi_forge.validate import validate_path
 
 
 def create_probe_records(
@@ -278,7 +286,7 @@ def cmd_build(args: argparse.Namespace) -> int:
         lang="ro",
     )
 
-    # 6. Write packages
+    # 6. Write packages, metadata, and attribution
     writer = RNS510AscWriter(fmt_config)
     country_out_dir = out_dir / country_id
     total_written = 0
@@ -295,12 +303,93 @@ def cmd_build(args: argparse.Namespace) -> int:
 
         written_files = writer.write(records, target_asc, force_chunk_suffix=True)
         total_written += len(records)
+
+        # Write per-category meta.json
+        meta_dict = create_category_meta(
+            country_id=country_id,
+            category_id=cat_id,
+            asc_files=written_files,
+            count=len(records),
+            osm_extract_date=dl_result.extract_timestamp,
+        )
+        write_category_meta(cat_dir, meta_dict)
+
         files_str = ", ".join(f.name for f in written_files)
         print(f"{cat_id:<20} {len(records):<12} {files_str}")
+
+    # Write country ATTRIBUTION.txt
+    write_attribution_file(country_out_dir)
 
     print("-" * 65)
     print(f"Total POIs written: {total_written} across {len(selected_cat_ids)} categories")
     print(f"Output directory  : {country_out_dir}")
+
+    # Optional zip creation
+    if args.zip:
+        zip_path = out_dir / f"{country_id}.zip"
+        print(f"Creating country zip archive: {zip_path}...")
+        create_country_zip(country_out_dir, zip_path)
+        print(f"Zip ready ({zip_path.stat().st_size} bytes)")
+
+    return 0
+
+
+def cmd_validate(args: argparse.Namespace) -> int:
+    """Execute 'validate' subcommand."""
+    target_path = Path(args.path)
+    config_path = Path(args.config)
+    config = (
+        RNS510AscConfig.from_yaml(config_path)
+        if config_path.exists()
+        else RNS510AscConfig()
+    )
+
+    print("=" * 60)
+    print(f"Validating path: {target_path}")
+    print(f"Format config  : {config_path} (charset={config.charset}, max_pois={config.max_pois_per_file})")
+    print("=" * 60)
+
+    report = validate_path(target_path, config=config)
+
+    print(f"Total files checked  : {report.total_files}")
+    print(f"Total records checked: {report.total_records}")
+    print(f"Errors               : {report.error_count}")
+    print(f"Warnings             : {report.warning_count}")
+    print("-" * 60)
+
+    for issue in report.issues:
+        loc = f"{issue.file_path.name}"
+        if issue.line_number is not None:
+            loc += f":L{issue.line_number}"
+        tag = f"[{issue.severity}]"
+        print(f"{tag:<10} {loc:<30} {issue.message}")
+
+    if not report.is_valid:
+        print("\nValidation FAILED.")
+        return 1
+
+    print("\nValidation PASSED successfully.")
+    return 0
+
+
+def cmd_index(args: argparse.Namespace) -> int:
+    """Execute 'index' subcommand."""
+    packages_dir = Path(args.packages)
+    out_file = Path(args.out)
+    fmt_config = Path(args.format_config)
+    countries_config = Path(args.countries_config)
+
+    print(f"Building release index from packages in '{packages_dir}'...")
+    index_dict = build_index(
+        packages_dir=packages_dir,
+        format_config_path=fmt_config,
+        countries_config_path=countries_config,
+    )
+
+    written = write_index(index_dict, out_file)
+    print(f"Index generated successfully at: {written}")
+    print(f"  Countries indexed : {len(index_dict.get('countries', []))}")
+    print(f"  Verified format   : {index_dict['format']['verified']}")
     return 0
 
 
@@ -411,22 +500,52 @@ def main(argv: list[str] | None = None) -> int:
         default="config/categories.yml",
         help="Categories config file (default: config/categories.yml)",
     )
+    build_p.add_argument(
+        "--zip",
+        action="store_true",
+        help="Create a distributable ZIP package of the country",
+    )
     build_p.set_defaults(func=cmd_build)
 
-    # Placeholders for future phases
+    # validate subcommand
     validate_p = subparsers.add_parser(
-        "validate", help="Validate generated POI files against format.yml (Phase 3)"
+        "validate", help="Validate generated POI files against format.yml"
     )
-    validate_p.set_defaults(
-        func=lambda args: print("validate will be implemented in Phase 3.") or 0
+    validate_p.add_argument("path", help="Path to .asc file or directory of packages")
+    validate_p.add_argument(
+        "--config",
+        "-c",
+        default="config/format.yml",
+        help="Path to format.yml (default: config/format.yml)",
     )
+    validate_p.set_defaults(func=cmd_validate)
 
+    # index subcommand
     index_p = subparsers.add_parser(
-        "index", help="Build index.json for release and web app (Phase 3)"
+        "index", help="Build index.json for release and web app"
     )
-    index_p.set_defaults(
-        func=lambda args: print("index will be implemented in Phase 3.") or 0
+    index_p.add_argument(
+        "--packages",
+        default="packages",
+        help="Path to packages directory (default: packages)",
     )
+    index_p.add_argument(
+        "--out",
+        "-o",
+        default="index.json",
+        help="Output index JSON path (default: index.json)",
+    )
+    index_p.add_argument(
+        "--format-config",
+        default="config/format.yml",
+        help="Path to format.yml (default: config/format.yml)",
+    )
+    index_p.add_argument(
+        "--countries-config",
+        default="config/countries.yml",
+        help="Path to countries.yml (default: config/countries.yml)",
+    )
+    index_p.set_defaults(func=cmd_index)
 
     args = parser.parse_args(argv)
     if not args.command:
