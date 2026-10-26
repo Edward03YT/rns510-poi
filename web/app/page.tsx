@@ -5,6 +5,7 @@ import { Header } from "@/components/Header";
 import { VerifiedNotice } from "@/components/VerifiedNotice";
 import { CountryPicker } from "@/components/CountryPicker";
 import { CategorySelector } from "@/components/CategorySelector";
+import { DownloadPanel } from "@/components/DownloadPanel";
 import { Footer } from "@/components/Footer";
 import { DEFAULT_MOCK_INDEX } from "@/lib/indexLoader";
 import { CountryEntry, IndexData, Language } from "@/lib/types";
@@ -15,7 +16,6 @@ import {
   Info,
   ExternalLink,
   HardDrive,
-  FileText,
 } from "lucide-react";
 
 export default function HomePage() {
@@ -152,48 +152,12 @@ export default function HomePage() {
                 lang={lang}
               />
 
-              {/* Download Action Box (Phase 6 placeholder & Phase 7 browser zip foundation) */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">
-                  {t.individualFiles}
-                </h3>
-
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
-                  {currentCountry.categories
-                    .filter((c) => selectedCategoryIds.has(c.id))
-                    .map((cat) => (
-                      <div key={cat.id} className="space-y-1">
-                        {cat.files.map((file) => (
-                          <div
-                            key={file.name}
-                            className="flex items-center justify-between text-xs bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60"
-                          >
-                            <div className="flex items-center space-x-2 truncate">
-                              <FileText className="w-4 h-4 text-brand-600 dark:text-brand-400 shrink-0" />
-                              <span className="font-mono text-slate-700 dark:text-slate-300 truncate">
-                                {file.name}
-                              </span>
-                            </div>
-                            <span className="text-slate-400 font-mono shrink-0 ml-2">
-                              {(file.bytes / 1024).toFixed(1)} KB
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ))}
-                </div>
-
-                <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                  <button
-                    type="button"
-                    disabled={selectedCategoryIds.size === 0}
-                    className="w-full py-3 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm shadow-md shadow-brand-500/20 flex items-center justify-center space-x-2 transition-all"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>{t.downloadZipButton}</span>
-                  </button>
-                </div>
-              </div>
+              <DownloadPanel
+                countryId={selectedCountryId}
+                categories={currentCountry.categories}
+                selectedCategoryIds={selectedCategoryIds}
+                lang={lang}
+              />
             </div>
           </div>
         )}

@@ -12,6 +12,13 @@ from poi_forge.extract import extract_pois, load_categories
 from poi_forge.formats.base import POIRecord
 from poi_forge.formats.rns510_asc import RNS510AscConfig, RNS510AscWriter
 from poi_forge.index import build_index, write_index
+from poi_forge.overpass import (
+    MAX_RADIUS_KM,
+    build_overpass_query,
+    extract_overpass_elements,
+    query_overpass,
+    validate_custom_area_limits,
+)
 from poi_forge.packaging import (
     create_category_meta,
     create_country_zip,
@@ -393,6 +400,124 @@ def cmd_index(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_custom_area(args: argparse.Namespace) -> int:
+    """Execute 'custom-area' subcommand using Overpass API with strict limits."""
+    out_dir = Path(args.out)
+    fmt_config_path = Path(args.format_config)
+    cat_config_path = Path(args.categories_config)
+    area_name = args.name
+
+    fmt_config = (
+        RNS510AscConfig.from_yaml(fmt_config_path)
+        if fmt_config_path.exists()
+        else RNS510AscConfig()
+    )
+    all_categories = load_categories(cat_config_path)
+
+    if args.categories:
+        selected_cat_ids = [c.strip() for c in args.categories.split(",") if c.strip()]
+        for cid in selected_cat_ids:
+            if cid not in all_categories:
+                print(f"Error: Unknown category '{cid}'. Available: {list(all_categories.keys())}")
+                return 1
+    else:
+        selected_cat_ids = list(all_categories.keys())
+
+    bbox_tuple: tuple[float, float, float, float] | None = None
+    if args.bbox:
+        try:
+            parts = [float(x.strip()) for x in args.bbox.split(",")]
+            if len(parts) != 4:
+                raise ValueError
+            bbox_tuple = (parts[0], parts[1], parts[2], parts[3])
+        except Exception:
+            print("Error: --bbox must be formatted as 'min_lon,min_lat,max_lon,max_lat'")
+            return 1
+
+    try:
+        if bbox_tuple:
+            validate_custom_area_limits(bbox=bbox_tuple)
+            print(f"Validating bounding box: {bbox_tuple}")
+        else:
+            validate_custom_area_limits(radius_km=args.radius_km)
+            print(
+                f"Custom area center: ({args.lat:.4f}, {args.lon:.4f}), "
+                f"radius: {args.radius_km:.1f} km (max allowed: {MAX_RADIUS_KM} km)"
+            )
+    except ValueError as e:
+        print(f"Area Limit Error: {e}")
+        return 1
+
+    print("Building Overpass query...")
+    query = build_overpass_query(
+        categories=all_categories,
+        category_ids=selected_cat_ids,
+        lat=args.lat if not bbox_tuple else None,
+        lon=args.lon if not bbox_tuple else None,
+        radius_km=args.radius_km if not bbox_tuple else None,
+        bbox=bbox_tuple,
+    )
+
+    print("Querying Overpass API...")
+    try:
+        overpass_data = query_overpass(query)
+    except Exception as e:
+        print(f"Overpass Error: {e}")
+        return 1
+
+    elements = overpass_data.get("elements", [])
+    print(f"Received {len(elements)} raw elements from Overpass.")
+
+    pois_by_cat = extract_overpass_elements(
+        overpass_data,
+        categories_path=cat_config_path,
+        category_ids=selected_cat_ids,
+        lang=args.lang,
+    )
+
+    writer = RNS510AscWriter(fmt_config)
+    area_out_dir = out_dir / area_name
+    total_written = 0
+
+    print("\nWriting packages:")
+    print("-" * 65)
+    print(f"{'Category':<20} {'POIs Count':<12} {'Files Generated'}")
+    print("-" * 65)
+
+    for cat_id in selected_cat_ids:
+        records = pois_by_cat.get(cat_id, [])
+        cat_dir = area_out_dir / cat_id
+        target_asc = cat_dir / f"{area_name}_{cat_id}.asc"
+
+        written_files = writer.write(records, target_asc, force_chunk_suffix=True)
+        total_written += len(records)
+
+        meta_dict = create_category_meta(
+            country_id=area_name,
+            category_id=cat_id,
+            asc_files=written_files,
+            count=len(records),
+            osm_extract_date="live-overpass",
+        )
+        write_category_meta(cat_dir, meta_dict)
+
+        files_str = ", ".join(f.name for f in written_files)
+        print(f"{cat_id:<20} {len(records):<12} {files_str}")
+
+    write_attribution_file(area_out_dir)
+
+    print("-" * 65)
+    print(f"Total POIs written: {total_written} across {len(selected_cat_ids)} categories")
+    print(f"Output directory  : {area_out_dir}")
+
+    if args.zip:
+        zip_path = out_dir / f"{area_name}.zip"
+        create_country_zip(area_out_dir, zip_path)
+        print(f"Created zip archive: {zip_path}")
+
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Main CLI entrypoint."""
     parser = argparse.ArgumentParser(
@@ -546,6 +671,70 @@ def main(argv: list[str] | None = None) -> int:
         help="Path to countries.yml (default: config/countries.yml)",
     )
     index_p.set_defaults(func=cmd_index)
+
+    # custom-area subcommand
+    custom_p = subparsers.add_parser(
+        "custom-area",
+        help="Extract POIs for a custom area (radius or bbox) via Overpass API with strict limits",
+    )
+    custom_p.add_argument(
+        "--lat",
+        type=float,
+        default=44.4323,
+        help="Center latitude for radius query (default: 44.4323)",
+    )
+    custom_p.add_argument(
+        "--lon",
+        type=float,
+        default=26.1063,
+        help="Center longitude for radius query (default: 26.1063)",
+    )
+    custom_p.add_argument(
+        "--radius-km",
+        type=float,
+        default=10.0,
+        help="Radius in kilometers (default: 10.0, max: 25.0)",
+    )
+    custom_p.add_argument(
+        "--bbox",
+        help="Bounding box 'min_lon,min_lat,max_lon,max_lat' (max area: 0.25 sq degrees)",
+    )
+    custom_p.add_argument(
+        "--categories",
+        help="Comma-separated category IDs to extract (default: all)",
+    )
+    custom_p.add_argument(
+        "--name",
+        default="custom_area",
+        help="Custom area name identifier (default: custom_area)",
+    )
+    custom_p.add_argument(
+        "--out",
+        default="custom_packages",
+        help="Output directory (default: custom_packages)",
+    )
+    custom_p.add_argument(
+        "--format-config",
+        default="config/format.yml",
+        help="Path to format.yml (default: config/format.yml)",
+    )
+    custom_p.add_argument(
+        "--categories-config",
+        default="config/categories.yml",
+        help="Path to categories.yml (default: config/categories.yml)",
+    )
+    custom_p.add_argument(
+        "--lang",
+        default="ro",
+        choices=["ro", "en"],
+        help="Language for fallback names (default: ro)",
+    )
+    custom_p.add_argument(
+        "--zip",
+        action="store_true",
+        help="Create a distributable ZIP archive of the custom area",
+    )
+    custom_p.set_defaults(func=cmd_custom_area)
 
     args = parser.parse_args(argv)
     if not args.command:
